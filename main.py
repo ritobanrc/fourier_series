@@ -13,7 +13,7 @@ class Canvas(app.Canvas):
         self.coeffs = {}
         self.ellipses = {}
         self.arrows = {}
-        self.ns = [x for x in range(-21, 22, 2)]
+        self.ns = [x for x in range(-101, 101, 2)]
         for n in self.ns:
             if n == 0:
                 c_n = 0
@@ -37,6 +37,13 @@ class Canvas(app.Canvas):
 
         self.ns.sort(key=lambda n: cmath.polar(self.coeffs[n])[0], reverse=True)
 
+        self.line = visuals.LineVisual(pos=np.zeros((1, 2)),
+                                       color=(1.0, 1.0, 0.0, 1.0),
+                                       width=2,
+                                       method='gl'
+                                       )
+        self.line.transform = visuals.transforms.STTransform((0.5, 0.5, 0.5))
+
         self._timer = app.Timer('auto', connect=self.on_timer, start=True)
         self.show()
 
@@ -48,6 +55,7 @@ class Canvas(app.Canvas):
             ellipse.draw()
         for _, arrow in self.arrows.items():
             arrow.draw()
+        self.line.draw()
 
     def on_resize(self, event):
         vp = (0, 0, *self.physical_size)
@@ -63,6 +71,8 @@ class Canvas(app.Canvas):
             self.arrows[n].set_data(np.array([[temp.real, temp.imag],
                                               [end_point.real, end_point.imag]]))
 
+        new_line = np.vstack((self.line.pos + np.array([0, 0.01]), [end_point.real, end_point.imag]))
+        self.line.set_data(new_line)
         self.update()
 
 if __name__ == '__main__':
