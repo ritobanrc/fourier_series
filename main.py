@@ -13,7 +13,9 @@ class Canvas(app.Canvas):
         self.coeffs = {}
         self.ellipses = {}
         self.arrows = {}
-        self.ns = [x for x in range(-101, 101, 2)]
+        self.ns = list(range(-21, 22, 2))
+        assert self.ns[0] % 2 == 1
+        assert self.ns[0]  == -self.ns[-1]
         for n in self.ns:
             if n == 0:
                 c_n = 0
