@@ -1,10 +1,7 @@
-import sys
 import cmath
 import numpy as np
 
 from vispy import app, visuals
-from scipy.signal import square
-import scipy.integrate as integrate
 from svgpathtools import svg2paths
 
 shift_up = False
@@ -15,18 +12,24 @@ def get_square_wave_coeff(n):
 
 
 class Canvas(app.Canvas):
-    def __init__(self, svg='treble.svg', num_samples=1000, follow_path=True):
+    def __init__(self, svg, num_samples=10000, follow_path=True):
         app.Canvas.__init__(self, keys='interactive', size=(800, 800), resizable=False)
+
+        self.follow_path = follow_path
 
         self.time = 0
         # dictionary from n to c_n
         self.coeffs = {}
         self.ellipses = {}
         self.arrows = {}
-        self.ns = list(range(-10, 10))
+        self.ns = list(range(-40, 40))
 
         paths, _, svg_attribs = svg2paths(svg, return_svg_attributes=True)
-        *_, width, height = [int(x) for x in svg_attribs['viewBox'].split(' ')]
+        if 'viewBox' in svg_attribs:
+            *_, width, height = [int(x) for x in svg_attribs['viewBox'].split(' ')]
+        else:
+            width = int(svg_attribs['width'])
+            height = int(svg_attribs['height'])
         if len(paths) > 1:
             print("Warning: SVG contains multiple paths, but only 1 is supported. Using only first path.")
         path = paths[0]
@@ -40,7 +43,7 @@ class Canvas(app.Canvas):
             p = path.point(t)
             samples[i] = p.real/width + -1j * p.imag / height
 
-        self.camera = visuals.transforms.STTransform([0.5, 0.5, 0.5])
+        self.camera = visuals.transforms.STTransform([0.75, 0.75])
 
         for n in self.ns:
             # c_n = np.array([cmath.exp(-n*cmath.tau*1j*t)*cs
@@ -52,12 +55,14 @@ class Canvas(app.Canvas):
                 center=(0, 0),
                 color=(0, 0, 0, 0),
                 border_color=(0.5, 0.5, 0.5, 1.0),
-                radius=(r, r)
+                radius=(r, r),
+                # antialias=True
             )
             self.ellipses[n].transform = self.camera
             self.arrows[n] = visuals.ArrowVisual(pos=np.zeros((2, 2)),
                                                  color=(1.0, 1.0, 1.0, 1.0),
-                                                 method='gl')
+                                                 method='gl',
+                                                 antialias=True)
             self.arrows[n].transform = self.camera
 
             self.coeffs[n] = c_n
@@ -68,7 +73,7 @@ class Canvas(app.Canvas):
                                        color=(1.0, 1.0, 0.0, 1.0),
                                        width=2,
                                        method='gl',
-                                       # antialias=True
+                                       antialias=True
                                        )
         self.line.transform = self.camera
 
@@ -99,17 +104,21 @@ class Canvas(app.Canvas):
             self.arrows[n].set_data(np.array([[temp.real, temp.imag],
                                               [end_point.real, end_point.imag]]))
 
+
         if shift_up:
             new_line = self.line.pos + np.array([0, 0.01])
         else:
             new_line = self.line.pos
+
+        delta = new_line[-1] - np.array([end_point.real, end_point.imag]) 
         if new_line.shape[0] == 1:
             new_line[0] = [end_point.real, end_point.imag]
         new_line = np.vstack((new_line, [end_point.real, end_point.imag]))
         self.line.set_data(new_line)
 
-        # if follow_path:
-        # self.camera = visuals.transforms.
+        if self.follow_path:
+            self.camera.move(self.camera.scale[0:1]*delta)
+
 
         self.update()
 
@@ -149,6 +158,7 @@ class Canvas(app.Canvas):
         self.camera.zoom([zoom, zoom], self.canvas_tr.map(event.pos))
 
 if __name__ == '__main__':
-    canvas = Canvas()
+    canvas = Canvas('treble.svg')
+    canvas.measure_fps()
     canvas.app.run()
 
