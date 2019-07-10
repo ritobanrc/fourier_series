@@ -8,11 +8,16 @@ from svgpathtools import svg2paths
 
 freqs =  list(range(-200, 200))
 shift_up = False
+follow_path = True
 
 time = 0
 line = []
 coeffs = {}
-camera_scale = (0.5, 0.5)
+# camera_scale = (0.75, 0.75)
+camera = cairo.Matrix()
+camera.scale(0.5, 0.5)
+
+camera_offset_x, camera_offset_y = (0, 0)
 
 def load_square_wave():
     for n in freqs:
@@ -35,7 +40,7 @@ def load_svg_coeffs(filename, num_samples=10000):
 
     dt = 1/num_samples
 
-    ts = np.linspace(0, 1, num_samples)
+    ts = np.arange(0, 1, dt)
     samples = np.empty([num_samples], dtype=complex)
     for i, t in enumerate(ts):
         p = path.point(t)
@@ -50,13 +55,17 @@ def draw(da, ctx):
     The draw loop. Called once per frame and draws stuff
     """
     global time
+    global camera_offset_x, camera_offset_y
     alloc = da.get_allocation()
     width = alloc.width
     height = alloc.height
 
-    ctx.scale(camera_scale[0]*width/2, camera_scale[1]*height/2)
-    ctx.translate(2, 2)
-    ctx.set_line_width(0.003)
+    ctx.translate(camera_offset_x + width/2, camera_offset_y + height/2)
+    ctx.scale(width/2, height/2)
+
+    ctx.transform(camera)
+
+    ctx.set_line_width(0.002)
 
     ctx.set_source_rgb(0, 0, 0)
     ctx.paint()
@@ -80,11 +89,20 @@ def draw(da, ctx):
         for idx, _ in enumerate(line):
             line[idx][1] += 0.005
 
+    if len(line):
+        delta = (line[-1][0] - end_point.real, line[-1][1] - end_point.imag)
+    else:
+        delta = (0, 0)
+
     line.append([end_point.real, end_point.imag])
 
     ctx.set_source_rgb(1.0, 1.0, 0)
     for point in line:
         ctx.line_to(*point)
+
+    if follow_path:
+        camera.translate(*delta)
+
     ctx.stroke()
 
     time += 0.002
@@ -94,9 +112,35 @@ def zoom(da, event):
     global camera_scale
     # print(event.x, event.y, event.direction)
     if event.direction == Gdk.ScrollDirection.UP:
-        camera_scale = (camera_scale[0]*1.25, camera_scale[1]*1.25)
+        camera.scale(1.25, 1.25)
+        # camera_scale = (camera_scale[0]*1.25, camera_scale[1]*1.25)
     elif event.direction == Gdk.ScrollDirection.DOWN:
-        camera_scale = (camera_scale[0]*0.8, camera_scale[1]*.8)
+        camera.scale(0.8, 0.8)
+        # camera_scale = (camera_scale[0]*0.8, camera_scale[1]*.8)
+
+
+last_mouse_x = 0
+last_mouse_y = 0
+
+def mouse_moved(da, event, *data):
+    global last_mouse_x, last_mouse_y, camera_offset_x, camera_offset_y
+    if event.state & Gdk.ModifierType.BUTTON1_MASK:
+        delta_x = event.x - last_mouse_x
+        delta_y = event.y - last_mouse_y
+
+        last_mouse_x = event.x
+        last_mouse_y = event.y
+
+        camera_offset_x += delta_x
+        camera_offset_y += delta_y
+        # camera.translate(delta_x, delta_y)
+
+def button_press(da, event, *data):
+    global last_mouse_x, last_mouse_y
+    if event.button == 1:
+        last_mouse_x = event.x
+        last_mouse_y = event.y
+
 
 def main():
     """
@@ -110,12 +154,16 @@ def main():
     win.add(drawingarea)
     drawingarea.connect('draw', draw)
     drawingarea.add_events(Gdk.EventMask.SCROLL_MASK)
+    drawingarea.add_events(Gdk.EventMask.POINTER_MOTION_MASK)
+    drawingarea.add_events(Gdk.EventMask.BUTTON_PRESS_MASK)
     drawingarea.connect('scroll-event', zoom)
+    drawingarea.connect('motion-notify-event', mouse_moved)
+    drawingarea.connect('button-press-event', button_press)
 
     def tick():
         drawingarea.queue_draw()
         return True
-    GLib.timeout_add(20, tick)
+    GLib.timeout_add(50, tick)
 
     load_svg_coeffs('treble.svg')
 
