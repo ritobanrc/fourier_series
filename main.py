@@ -5,6 +5,7 @@ import gi
 gi.require_version("Gtk", "3.0")
 from gi.repository import Gtk, GLib, Gdk
 from svgpathtools import svg2paths
+import sys
 
 freqs =  list(range(-200, 200))
 shift_up = False
@@ -146,6 +147,12 @@ def main():
     """
     The main function
     """
+
+    if len(sys.argv) < 2:
+        sys.stderr.write("Requires one argument for SVG file")
+    else:
+        load_svg_coeffs(sys.argv[1])
+
     win = Gtk.Window()
     win.connect('destroy', Gtk.main_quit)
     win.set_default_size(800, 800)
@@ -165,7 +172,6 @@ def main():
         return True
     GLib.timeout_add(50, tick)
 
-    load_svg_coeffs('treble.svg')
 
     freqs.sort(key=lambda n: cmath.polar(coeffs[n])[0], reverse=True)
 
